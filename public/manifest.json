@@ -1,0 +1,45 @@
+{
+  "name": "CineConnect",
+  "short_name": "CineConnect",
+  "description": "India's Film & Production Platform — Connect talent, crew, and productions.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["entertainment", "business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Discover Talent",
+      "short_name": "Discover",
+      "description": "Browse and search talent profiles",
+      "url": "/discover",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "any" }]
+    },
+    {
+      "name": "My Dashboard",
+      "short_name": "Dashboard",
+      "description": "View your personal dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Post a Project",
+      "short_name": "Post Project",
+      "description": "Create a new project listing",
+      "url": "/post-project",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "any" }]
+    }
+  ]
+}

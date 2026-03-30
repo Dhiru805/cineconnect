@@ -77,10 +77,11 @@ export async function PATCH(req: NextRequest) {
       update.kycReviewedAt = new Date();
       update.kycNotes = reason || "";
       break;
-    case "setAdmin":
-      update.isAdmin = value === true;
-      break;
-    case "setRole":
+      case "setAdmin":
+        update.isAdmin = value === true;
+        if (value === true) update.role = "super-admin";
+        break;
+      case "setRole":
       update.role = value;
       break;
     case "setPlan":

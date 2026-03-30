@@ -3,10 +3,10 @@ import crypto from "crypto";
 import { connectDB } from "@/lib/mongodb";
 import { Contract } from "@/lib/models/Contract";
 import { Payment } from "@/lib/models/Payment";
+import { getRazorpayKeys } from "@/lib/razorpayKeys";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "cineconnect_secret_key_2024";
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "";
 
 function getUserFromToken(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
@@ -34,10 +34,11 @@ export async function POST(req: NextRequest) {
     const contract = await Contract.findById(contractId);
     if (!contract) return NextResponse.json({ error: "Contract not found" }, { status: 404 });
 
-    // Verify signature (skip in test mode)
-    if (RAZORPAY_KEY_SECRET && razorpay_signature) {
+    // Verify HMAC signature when live key is configured
+    const { keySecret } = await getRazorpayKeys();
+    if (keySecret && razorpay_signature) {
       const expected = crypto
-        .createHmac("sha256", RAZORPAY_KEY_SECRET)
+        .createHmac("sha256", keySecret)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest("hex");
       if (expected !== razorpay_signature) {
@@ -45,13 +46,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Update contract
     contract.razorpayPaymentId = razorpay_payment_id;
     contract.paymentStatus = "escrowed";
     if (contract.status === "signed") contract.status = "active";
     await contract.save();
 
-    // Update payment record
     await Payment.findOneAndUpdate(
       { razorpayOrderId: razorpay_order_id },
       {

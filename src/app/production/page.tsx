@@ -191,43 +191,9 @@ export default function ProductionPage() {
 
   const addMilestone = async () => {
     if (!milestoneTitle.trim()) return;
-    await doAction("add_scene", {} as Record<string, unknown>); // placeholder — handled below
-    if (!production) return;
-    setSaving(true);
-    try {
-      const newMilestones = [...production.milestones, { title: milestoneTitle, completed: false }];
-      const r = await fetch("/api/production", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ productionId: production._id, action: "generic", data: { milestones: newMilestones } }),
-      });
-      // Fallback: re-POST with updated milestones
-      const r2 = await fetch("/api/production", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          project: selectedProjectId,
-          title: production.title,
-          scenes: production.scenes,
-          crewAssignments: production.crewAssignments,
-          milestones: newMilestones,
-          notes: production.notes,
-          status: production.status,
-        }),
-      });
-      const data2 = await r2.json();
-      if (r2.ok) setProduction(data2.production);
-      else if (r.ok) { const data = await r.json(); setProduction(data.production); }
-      setShowMilestoneForm(false);
-      setMilestoneTitle("");
-      showFeedback("Milestone added!");
-    } catch {
-      showFeedback("Error adding milestone", true);
-    } finally {
-      setSaving(false);
-    }
+    await doAction("add_milestone", { title: milestoneTitle });
+    setShowMilestoneForm(false);
+    setMilestoneTitle("");
   };
 
   const toggleMilestone = async (title: string) => {

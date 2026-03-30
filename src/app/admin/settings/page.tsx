@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const SECTIONS = [
   "General",
@@ -110,19 +110,48 @@ export default function AdminSettings() {
   const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
   const [razorpayMode, setRazorpayMode] = useState<"live" | "test">("test");
   const [integrationSaved, setIntegrationSaved] = useState(false);
+  const [integrationError, setIntegrationError] = useState("");
+  const [integrationStatus, setIntegrationStatus] = useState<{
+    isConfigured: boolean; mode: string; keyId: string; hasSecret: boolean;
+  } | null>(null);
+  const [loadingKeys, setLoadingKeys] = useState(false);
+
+  // Load current key status on mount (when Integrations tab is selected)
+  useEffect(() => {
+    if (section !== "Integrations" || integrationStatus !== null) return;
+    setLoadingKeys(true);
+    fetch("/api/admin/settings/integrations", { credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (!d) return;
+        setIntegrationStatus(d);
+        setRazorpayMode(d.mode === "live" ? "live" : "test");
+        // Pre-fill the key_id field with the full value if available
+        if (d.keyIdFull) setRazorpayKeyId(d.keyIdFull);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingKeys(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
 
   const handleIntegrationSave = async () => {
-    // POST to /api/admin/settings/integrations
+    setIntegrationError("");
     try {
-      await fetch("/api/admin/settings/integrations", {
+      const r = await fetch("/api/admin/settings/integrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ razorpayKeyId, razorpayKeySecret, razorpayMode }),
       });
-    } catch {}
-    setIntegrationSaved(true);
-    setTimeout(() => setIntegrationSaved(false), 2500);
+      const d = await r.json();
+      if (!r.ok) { setIntegrationError(d.error || "Failed to save keys"); return; }
+      setIntegrationSaved(true);
+      setRazorpayKeySecret("");
+      setIntegrationStatus({ isConfigured: true, mode: razorpayMode, keyId: razorpayKeyId.substring(0, 12) + "•••••••••••••", hasSecret: true });
+      setTimeout(() => setIntegrationSaved(false), 3000);
+    } catch {
+      setIntegrationError("Network error. Please try again.");
+    }
   };
 
   // Security
@@ -205,14 +234,59 @@ export default function AdminSettings() {
           )}
 
             {section === "Integrations" && (
-              <>
-                <div className="text-sm font-semibold text-white mb-1">Payment Gateway</div>
-                <p className="text-xs text-white/40 mb-5">
-                  Configure Razorpay keys. Keys are stored server-side and never exposed to the browser.
-                </p>
+               <>
+                 <div className="text-sm font-semibold text-white mb-1">Payment Gateway</div>
+                 <p className="text-xs text-white/40 mb-4">
+                   Configure Razorpay keys. Keys are stored in the database and applied to all payment requests immediately — no server restart needed.
+                 </p>
 
-                {/* Mode toggle */}
-                <div className="flex items-center gap-3 mb-5">
+                 {/* Current status banner */}
+                 {loadingKeys && (
+                   <div className="mb-4 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-xs text-white/50 animate-pulse">
+                     Loading current configuration...
+                   </div>
+                 )}
+                 {!loadingKeys && integrationStatus && (
+                   <div className={`mb-5 px-4 py-3 rounded-xl border flex items-center gap-3 ${
+                     integrationStatus.isConfigured
+                       ? integrationStatus.mode === "live"
+                         ? "bg-emerald-500/10 border-emerald-500/30"
+                         : "bg-amber-500/10 border-amber-500/30"
+                       : "bg-red-500/10 border-red-500/30"
+                   }`}>
+                     <div className={`w-2 h-2 rounded-full shrink-0 ${
+                       integrationStatus.isConfigured
+                         ? integrationStatus.mode === "live" ? "bg-emerald-400" : "bg-amber-400"
+                         : "bg-red-400"
+                     }`} />
+                     <div>
+                       <p className={`text-xs font-semibold ${
+                         integrationStatus.isConfigured
+                           ? integrationStatus.mode === "live" ? "text-emerald-400" : "text-amber-400"
+                           : "text-red-400"
+                       }`}>
+                         {integrationStatus.isConfigured
+                           ? `${integrationStatus.mode === "live" ? "Live" : "Test"} mode configured`
+                           : "Not configured — payments running in simulation mode"}
+                       </p>
+                       {integrationStatus.isConfigured && (
+                         <p className="text-[11px] text-white/40 mt-0.5">
+                           Key ID: <code className="font-mono text-white/60">{integrationStatus.keyId}</code>
+                           &nbsp;· Secret: {integrationStatus.hasSecret ? "✓ saved" : "✗ missing"}
+                         </p>
+                       )}
+                     </div>
+                   </div>
+                 )}
+
+                 {integrationError && (
+                   <div className="mb-4 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-400">
+                     {integrationError}
+                   </div>
+                 )}
+
+                 {/* Mode toggle */}
+                 <div className="flex items-center gap-3 mb-5">
                   <span className="text-xs text-white/50">Mode:</span>
                   {(["test", "live"] as const).map((m) => (
                     <button
@@ -285,9 +359,8 @@ export default function AdminSettings() {
                     <span className="text-white/60">KEY_SECRET</span> — used server-side only to create orders and verify HMAC signatures. Never exposed.
                   </div>
                   <div className="text-[12px] text-white/40 leading-relaxed mt-1">
-                    After saving, the server will restart and load the new keys from environment variables.
-                    You can also set them directly in <code className="text-amber-400 bg-amber-500/10 px-1 rounded">.env.local</code> for immediate effect.
-                  </div>
+                      Keys are saved to the database immediately and used for all payment requests. They are also written to <code className="text-amber-400 bg-amber-500/10 px-1 rounded">.env.local</code> for persistence across server restarts.
+                    </div>
                 </div>
 
                 <div className="pt-5 flex justify-end">

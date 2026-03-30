@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   }
 
   await connectDB();
-  const user = await User.findByIdAndUpdate(decoded.id, { isAdmin: true }, { new: true }).select("-password");
+  const user = await User.findByIdAndUpdate(decoded.id, { isAdmin: true, role: "super-admin" }, { new: true }).select("-password");
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   return NextResponse.json({ message: "Admin access granted", user });

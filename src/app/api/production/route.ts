@@ -194,11 +194,14 @@ export async function PATCH(req: NextRequest) {
     case "remove_crew":
       production.crewAssignments = production.crewAssignments.filter((c) => c.name !== data.name);
       break;
-    case "toggle_milestone": {
-      const mi = production.milestones.findIndex((m) => m.title === data.title);
-      if (mi >= 0) production.milestones[mi].completed = !production.milestones[mi].completed;
-      break;
-    }
+      case "toggle_milestone": {
+        const mi = production.milestones.findIndex((m) => m.title === data.title);
+        if (mi >= 0) production.milestones[mi].completed = !production.milestones[mi].completed;
+        break;
+      }
+      case "add_milestone":
+        production.milestones.push({ title: data.title, dueDate: data.dueDate, completed: false });
+        break;
     case "add_callsheet":
       production.callSheets.push(data);
       break;

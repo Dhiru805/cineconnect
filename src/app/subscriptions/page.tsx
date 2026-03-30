@@ -10,6 +10,12 @@ import {
   BadgeCheck, TrendingUp, BarChart3, Users, Shield, Infinity,
 } from "lucide-react";
 
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
 const plans = [
   {
     id: "free",
@@ -131,9 +137,67 @@ export default function SubscriptionsPage() {
     if (planId === "free") return;
     if (planId === "studio") { window.location.href = "/contact"; return; }
     setUpgrading(planId);
-    await new Promise((r) => setTimeout(r, 1500));
-    alert(`Razorpay subscription flow for ${planId} plan would open here. Connect your Razorpay keys to enable live payments.`);
-    setUpgrading(null);
+    try {
+      const plan = plans.find((p) => p.id === planId);
+      if (!plan) return;
+      const amountINR = billingAnnual ? Math.round(plan.price * 12 * 0.8) : plan.price;
+
+      // Create Razorpay order
+      const orderRes = await fetch("/api/payments/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ amount: amountINR, currency: "INR", notes: { plan: planId, billing: billingAnnual ? "annual" : "monthly" } }),
+      });
+      const orderData = await orderRes.json();
+
+      if (!orderRes.ok || !orderData.orderId) {
+        alert(orderData.error || "Failed to create payment order. Please add Razorpay keys in Admin Settings.");
+        return;
+      }
+
+      // Load Razorpay script
+      if (!window.Razorpay) {
+        await new Promise<void>((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://checkout.razorpay.com/v1/checkout.js";
+          s.onload = () => resolve();
+          s.onerror = () => reject();
+          document.head.appendChild(s);
+        });
+      }
+
+      const rzp = new window.Razorpay({
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "CineConnect",
+        description: `${plan.name} Plan — ${billingAnnual ? "Annual" : "Monthly"}`,
+        order_id: orderData.orderId,
+        prefill: { name: (user as { name?: string }).name || "", email: (user as { email?: string }).email || "" },
+        theme: { color: "#f59e0b" },
+        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+          // Verify payment
+          const verifyRes = await fetch("/api/payments/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ ...response, plan: planId }),
+          });
+          if (verifyRes.ok) {
+            alert(`Payment successful! Your ${plan.name} plan is now active.`);
+            window.location.reload();
+          } else {
+            alert("Payment verification failed. Please contact support.");
+          }
+        },
+      });
+      rzp.open();
+    } catch {
+      alert("Payment error. Please try again.");
+    } finally {
+      setUpgrading(null);
+    }
   };
 
   const getAnnualPrice = (monthly: number) => Math.round(monthly * 12 * 0.8);
